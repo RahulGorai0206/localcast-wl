@@ -112,7 +112,8 @@ def start_server(port):
 def main():
     parser = argparse.ArgumentParser(description="LocalCast-WL: A hybrid Wayland screen & audio streamer.")
     parser.add_argument('-p', '--port', type=int, default=5000, help="Port to run the stream on (default: 5000)")
-    parser.add_argument('-b', '--browser', type=str, help="Force a specific browser (chrome, brave, edge, opera, firefox)")
+    parser.add_argument('-b', '--browser', type=str, help="Force and auto-open a specific browser (chrome, brave, edge, opera, firefox)")
+    parser.add_argument('-a', '--auto-open', action='store_true', help="Automatically open the capture window in your browser")
     args = parser.parse_args()
 
     print("\n🚀 Starting LocalCast-WL...")
@@ -123,9 +124,15 @@ def main():
 
     url = f"http://127.0.0.1:{args.port}"
     print(f"📡 Server active at {url}")
-    print("\nPress Ctrl+C in this terminal to stop streaming and exit.")
+    print("\nPress Ctrl+C in this terminal to stop the server and exit.")
 
-    browser_process = launch_browser(url, args.browser)
+    browser_process = None
+    
+    # Only launch the browser if explicitly asked via -a or -b
+    if args.auto_open or args.browser:
+        browser_process = launch_browser(url, args.browser)
+    else:
+        print(f"\n🌐 Waiting in background mode. Open {url} manually in your browser to trigger the capture.")
 
     try:
         while True:
