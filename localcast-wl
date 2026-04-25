@@ -110,7 +110,21 @@ def start_server(port):
     app.run(host='127.0.0.1', port=port, threaded=True)
 
 def main():
-    parser = argparse.ArgumentParser(description="LocalCast-WL: A hybrid Wayland screen & audio streamer.")
+    # Catch "help" without dashes to be more forgiving
+    if len(sys.argv) > 1 and sys.argv.lower() == 'help':
+        sys.argv = '--help'
+
+    parser = argparse.ArgumentParser(
+        description="LocalCast-WL: A hybrid Wayland screen & audio streamer.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""
+Examples:
+  localcast-wl                  # Start server and wait in background
+  localcast-wl -a               # Start server and auto-open default browser
+  localcast-wl -b firefox       # Start server and auto-open Firefox
+  localcast-wl -p 8080 -a       # Start server on custom port 8080 and auto-open
+        """
+    )
     parser.add_argument('-p', '--port', type=int, default=5000, help="Port to run the stream on (default: 5000)")
     parser.add_argument('-b', '--browser', type=str, help="Force and auto-open a specific browser (chrome, brave, edge, opera, firefox)")
     parser.add_argument('-a', '--auto-open', action='store_true', help="Automatically open the capture window in your browser")
@@ -128,7 +142,6 @@ def main():
 
     browser_process = None
     
-    # Only launch the browser if explicitly asked via -a or -b
     if args.auto_open or args.browser:
         browser_process = launch_browser(url, args.browser)
     else:

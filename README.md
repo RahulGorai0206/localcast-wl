@@ -21,7 +21,6 @@ Run this single command in your terminal to install all dependencies and set up 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RahulGorai0206/localcast-wl/main/install.sh | bash
 ```
-*(Note: Be sure to review the `install.sh` script if you prefer to know what is being executed on your machine!)*
 
 ### Manual Installation
 If you prefer not to use the automated script, you can install the dependencies and the tool manually:
@@ -44,27 +43,25 @@ sudo mv localcast-wl /usr/local/bin/
 
 ## 🚀 Usage
 
-Once installed, simply run the following command from anywhere in your terminal:
+By default, running the tool spins up the server in the background and waits for you to open the interface manually.
 
 ```bash
 localcast-wl
 ```
 
-This will spin up the local server and auto-detect your browser to open a minimal capture window. Select the screen you want to share, and your stream will begin immediately alongside your system audio.
+### Commands & Flags
 
-To stop the stream, simply press `Ctrl + C` in your terminal.
+You can pull up the built-in help menu at any time by running:
+```bash
+localcast-wl help
+```
 
-### CLI Options:
+**Available Options:**
+* `localcast-wl -a` (or `--auto-open`): Automatically launch the capture window in your default browser.
+* `localcast-wl -p 8080` (or `--port`): Run the stream on a custom port.
+* `localcast-wl -b firefox` (or `--browser`): Force the tool to launch using a specific browser. Supported options: `chrome`, `brave`, `edge`, `opera`, `firefox`. 
 
-* Run the stream on a custom port (Default is 5000):
-  ```bash
-  localcast-wl --port 8080
-  ```
-* Force the tool to launch using a specific browser:
-  ```bash
-  localcast-wl --browser firefox
-  ```
-  *Supported options: `chrome`, `brave`, `edge`, `opera`, `firefox`.*
+*(Note: Using the `-b` flag will automatically trigger the `-a` auto-open behavior).*
 
 ---
 
@@ -79,10 +76,10 @@ To stop the stream, simply press `Ctrl + C` in your terminal.
 ## 🐛 Troubleshooting
 
 **Q: The video plays, but I don't hear any system audio.**
-A: LocalCast-WL looks for your default PulseAudio/PipeWire sink. Ensure that your system's output volume isn't muted. If you have a complex audio routing setup (like Carla or Helvum), ensure the default monitor sink is capturing desktop audio.
+A: LocalCast-WL looks for your default PulseAudio/PipeWire sink. Ensure that your system's output volume isn't muted. If you have a complex audio routing setup, ensure the default monitor sink is capturing desktop audio.
 
 **Q: My browser opens, but it's not in "App" mode.**
-A: Only Chromium-based browsers (Chrome, Brave, Edge, Opera) support the `--app` flag. If LocalCast-WL falls back to Firefox or your system default, it will open as a standard new window. 
+A: Only Chromium-based browsers (Chrome, Brave, Edge, Opera) support the `--app` flag. If LocalCast-WL falls back to Firefox or your system default, it will open as a standard new window.
 
 ---
 

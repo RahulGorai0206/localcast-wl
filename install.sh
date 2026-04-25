@@ -7,6 +7,8 @@ echo "🚀 Starting LocalCast-WL Installation..."
 
 # 1. Install required system and Python dependencies
 echo "📦 Installing dependencies (ffmpeg, pulseaudio-utils, python3-flask)..."
+# The '|| true' prevents the script from crashing if the user has a broken repo (like a missing cdrom)
+sudo apt-get update || true
 sudo apt-get install -y ffmpeg pulseaudio-utils python3-flask
 
 # 2. Download the main script directly into the system's binary path
@@ -20,3 +22,4 @@ sudo chmod +x /usr/local/bin/localcast-wl
 echo ""
 echo "✅ Installation Complete!"
 echo "🎉 You can now type 'localcast-wl' in your terminal from anywhere to start streaming."
+echo "💡 Type 'localcast-wl help' to see all available options."
