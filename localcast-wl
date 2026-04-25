@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+import argparse
+import subprocess
+import threading
+import time
+import sys
+import logging
+import shutil
+from flask import Flask, Response, render_template_string
+
+app = Flask(__name__)
+
+# --- AUDIO CAPTURE LOGIC ---
+def get_audio_monitor():
+    try:
+        sink = subprocess.check_output(['pactl', 'get-default-sink']).decode().strip()
+        return f"{sink}.monitor"
+    except Exception:
+        return "default"
+
+def generate_audio_stream():
+    monitor_device = get_audio_monitor()
+    command = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'error',
+        '-f', 'pulse', '-i', monitor_device,
+        '-c:a', 'libvorbis', '-b:a', '128k', '-f', 'ogg', 'pipe:1'
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        while True:
+            data = process.stdout.read(4096)
+            if not data: break
+            yield data
+    finally:
+        process.terminate()
+
+# --- FRONTEND LOGIC ---
+HTML_PAGE = """
+<!DOCTYPE html>
+<html>
+<head><title>LocalCast-WL</title></head>
+<body style="background: #111; color: white; text-align: center; margin: 0; overflow: hidden; font-family: sans-serif;">
+    <div id="overlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;">
+        <h2>Select a screen to start streaming</h2>
+    </div>
+    <video id="video" autoplay playsinline muted style="width: 100vw; height: 100vh; object-fit: contain;"></video>
+    <audio id="audio" autoplay></audio>
+
+    <script>
+        async function startStream() {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+                document.getElementById('video').srcObject = stream;
+                document.getElementById('overlay').style.display = 'none';
+                
+                const audioEl = document.getElementById('audio');
+                audioEl.src = "/audio_feed";
+                audioEl.play();
+            } catch (err) {
+                document.getElementById('overlay').innerHTML = "<h2>Capture cancelled or failed.</h2><p>Close this window and try again.</p>";
+            }
+        }
+        window.onload = startStream;
+    </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_PAGE)
+
+@app.route('/audio_feed')
+def audio_feed():
+    return Response(generate_audio_stream(), mimetype='audio/ogg')
+
+# --- BROWSER LAUNCH LOGIC ---
+def launch_browser(url, preferred_browser=None):
+    browsers = {
+        'chrome': (['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'], ['--app={url}']),
+        'brave': (['brave-browser', 'brave'], ['--app={url}']),
+        'edge': (['microsoft-edge', 'microsoft-edge-stable', 'microsoft-edge-dev'], ['--app={url}']),
+        'opera': (['opera'], ['--app={url}']),
+        'firefox': (['firefox'], ['-new-window', '{url}'])
+    }
+
+    if preferred_browser and preferred_browser.lower() in browsers:
+        executables, flags = browsers[preferred_browser.lower()]
+        for exe in executables:
+            if shutil.which(exe):
+                print(f"🖥️  Opening capture window using {preferred_browser.title()}...")
+                cmd = [exe] + [f.format(url=url) for f in flags]
+                return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"⚠️  Could not find {preferred_browser} installed. Falling back to auto-detect...")
+
+    for name, (executables, flags) in browsers.items():
+        for exe in executables:
+            if shutil.which(exe):
+                print(f"🖥️  Opening capture window using {name.title()}...")
+                cmd = [exe] + [f.format(url=url) for f in flags]
+                return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    print("🖥️  Opening capture window using system default browser...")
+    return subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+# --- CLI WRAPPER LOGIC ---
+def start_server(port):
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    app.run(host='127.0.0.1', port=port, threaded=True)
+
+def main():
+    parser = argparse.ArgumentParser(description="LocalCast-WL: A hybrid Wayland screen & audio streamer.")
+    parser.add_argument('-p', '--port', type=int, default=5000, help="Port to run the stream on (default: 5000)")
+    parser.add_argument('-b', '--browser', type=str, help="Force a specific browser (chrome, brave, edge, opera, firefox)")
+    args = parser.parse_args()
+
+    print("\n🚀 Starting LocalCast-WL...")
+    
+    server_thread = threading.Thread(target=start_server, args=(args.port,), daemon=True)
+    server_thread.start()
+    time.sleep(1)
+
+    url = f"http://127.0.0.1:{args.port}"
+    print(f"📡 Server active at {url}")
+    print("\nPress Ctrl+C in this terminal to stop streaming and exit.")
+
+    browser_process = launch_browser(url, args.browser)
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n\n🛑 Shutting down LocalCast-WL...")
+        if browser_process:
+            browser_process.terminate()
+        sys.exit(0)
+
+if __name__ == '__main__':
+    main()
