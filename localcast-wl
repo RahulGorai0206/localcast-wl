@@ -4,11 +4,8 @@ import subprocess
 import threading
 import time
 import sys
-import logging
 import shutil
-from flask import Flask, Response, render_template_string
-
-app = Flask(__name__)
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # --- AUDIO CAPTURE LOGIC ---
 def get_audio_monitor():
@@ -17,22 +14,6 @@ def get_audio_monitor():
         return f"{sink}.monitor"
     except Exception:
         return "default"
-
-def generate_audio_stream():
-    monitor_device = get_audio_monitor()
-    command = [
-        'ffmpeg', '-hide_banner', '-loglevel', 'error',
-        '-f', 'pulse', '-i', monitor_device,
-        '-c:a', 'libvorbis', '-b:a', '128k', '-f', 'ogg', 'pipe:1'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    try:
-        while True:
-            data = process.stdout.read(4096)
-            if not data: break
-            yield data
-    finally:
-        process.terminate()
 
 # --- FRONTEND LOGIC ---
 HTML_PAGE = """
@@ -66,13 +47,54 @@ HTML_PAGE = """
 </html>
 """
 
-@app.route('/')
-def index():
-    return render_template_string(HTML_PAGE)
+# --- NATIVE SERVER LOGIC ---
+class StreamingHandler(BaseHTTPRequestHandler):
+    # Suppress default server logs for a clean terminal
+    def log_message(self, format, *args):
+        pass
 
-@app.route('/audio_feed')
-def audio_feed():
-    return Response(generate_audio_stream(), mimetype='audio/ogg')
+    def do_GET(self):
+        # Serve the HTML Interface
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.end_headers()
+            self.wfile.write(HTML_PAGE.encode('utf-8'))
+            
+        # Serve the continuous Audio Stream
+        elif self.path == '/audio_feed':
+            self.send_response(200)
+            self.send_header('Content-Type', 'audio/ogg')
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            
+            monitor_device = get_audio_monitor()
+            command = [
+                'ffmpeg', '-hide_banner', '-loglevel', 'error',
+                '-f', 'pulse', '-i', monitor_device,
+                '-c:a', 'libvorbis', '-b:a', '128k', '-f', 'ogg', 'pipe:1'
+            ]
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            
+            try:
+                # Continuously pipe FFmpeg audio directly to the browser
+                while True:
+                    data = process.stdout.read(4096)
+                    if not data:
+                        break
+                    self.wfile.write(data)
+            except BrokenPipeError:
+                # Browser tab was closed; stop sending data gracefully
+                pass
+            finally:
+                process.terminate()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+def start_server(port):
+    server = ThreadingHTTPServer(('127.0.0.1', port), StreamingHandler)
+    server.serve_forever()
 
 # --- BROWSER LAUNCH LOGIC ---
 def launch_browser(url, preferred_browser=None):
@@ -104,13 +126,7 @@ def launch_browser(url, preferred_browser=None):
     return subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # --- CLI WRAPPER LOGIC ---
-def start_server(port):
-    log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR)
-    app.run(host='127.0.0.1', port=port, threaded=True)
-
 def main():
-    # Catch "help" without dashes to be more forgiving
     if len(sys.argv) > 1 and sys.argv.lower() == 'help':
         sys.argv = '--help'
 
