@@ -127,8 +127,8 @@ def launch_browser(url, preferred_browser=None):
 
 # --- CLI WRAPPER LOGIC ---
 def main():
-    if len(sys.argv) > 1 and sys.argv.lower() == 'help':
-        sys.argv = '--help'
+    if len(sys.argv) > 1 and sys.argv[1].lower() == 'help':
+        sys.argv = [sys.argv[0], '--help']
 
     parser = argparse.ArgumentParser(
         description="LocalCast-WL: A hybrid Wayland screen & audio streamer.",
